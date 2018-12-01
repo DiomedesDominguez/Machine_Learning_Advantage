@@ -2,6 +2,9 @@
 using Accord.Math;
 using Accord.Math.Optimization.Losses;
 using Accord.Statistics;
+using Accord.Statistics.Analysis;
+using Accord.Statistics.Models.Regression;
+using Accord.Statistics.Models.Regression.Fitting;
 using Accord.Statistics.Models.Regression.Linear;
 using Accord.Statistics.Visualizations;
 using Deedle;
@@ -68,9 +71,9 @@ namespace ml_csharp_lesson1
             var housing = Frame.ReadCsv(path, separators: ",");
             housing = housing.Where(kv => ((decimal)kv.Value["median_house_value"]) < 500000);
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // create the median_high_house_value feature
+            housing.AddColumn("median_high_house_value",
+                housing["median_house_value"].Select(v => v.Value >= 265000 ? 1.0 : 0.0));
 
             // shuffle the frame
             var rnd = new Random();
@@ -82,10 +85,78 @@ namespace ml_csharp_lesson1
             var validation = housing.Rows[Enumerable.Range(12000, 2500)];
             var test = housing.Rows[Enumerable.Range(14500, 2500)];
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // build the list of features we're going to use
+            var columns = new string[] {
+                "latitude",
+                "longitude",
+                "housing_median_age",
+                "total_rooms",
+                "total_bedrooms",
+                "population",
+                "households",
+                "median_income" };
 
+            // train the model using a linear regressor
+            //var learner = new OrdinaryLeastSquares() { IsRobust = true };
+
+            // train the model using a logistic regressor
+            var learner = new IterativeReweightedLeastSquares<LogisticRegression>()
+            {
+                MaxIterations = 100
+            };
+
+            var regression = learner.Learn(
+                training.Columns[columns].ToArray2D<double>().ToJagged(),
+                training["median_high_house_value"].Values.ToArray());
+
+            // get probabilities
+            var features_validation = validation.Columns[columns].ToArray2D<double>().ToJagged();
+            var label_validation = validation["median_high_house_value"].Values.ToArray();
+            var probabilities = regression.Probability(features_validation);
+
+            // calculate the histogram of probabilities
+            var histogram = new Histogram();
+            histogram.Compute(probabilities, 0.05);
+
+            // draw the histogram
+            Plot(histogram, "Probability Histogram", "prediction", "count");
+
+            // get predictions and actuals
+            var predictions = regression.Decide(features_validation);
+            var actuals = label_validation.Select(v => v == 1.0 ? true : false).ToArray();
+
+            // create confusion matrix
+            var confusion = new ConfusionMatrix(predictions, actuals);
+
+            // display classification scores
+            Console.WriteLine($"True Positives:  {confusion.TruePositives}");
+            Console.WriteLine($"True Negatives:  {confusion.TrueNegatives}");
+            Console.WriteLine($"False Positives: {confusion.FalsePositives}");
+            Console.WriteLine($"False Negatives: {confusion.FalseNegatives}");
+
+            // display accuracy, precision, and recall
+            Console.WriteLine($"Accuracy:        {confusion.Accuracy}");
+            Console.WriteLine($"Precision:       {confusion.Precision}");
+            Console.WriteLine($"Recall:          {confusion.Recall}");
+
+            // display TPR and FPR
+            Console.WriteLine($"TPR:             {confusion.Sensitivity}");
+            Console.WriteLine($"FPR:             {confusion.FalsePositiveRate}");
+
+            // calculate roc curve
+            var roc = new ReceiverOperatingCharacteristic(
+                actuals,
+                predictions.Select(v => v ? 1 : 0).ToArray());
+            roc.Compute(100);
+
+            // generate the scatter plot
+            var rocPlot = roc.GetScatterplot(true);
+
+            // show roc curve
+            Plot(rocPlot);
+
+            // show the auc
+            Console.WriteLine($"AUC:             {roc.Area}");
             Console.ReadLine();
         }
     }

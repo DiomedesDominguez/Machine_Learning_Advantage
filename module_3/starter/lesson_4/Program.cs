@@ -65,11 +65,33 @@ namespace ml_csharp_lesson4
         /// <returns>The neural network to use</returns>
         public static CNTK.Function CreateNetwork()
         {
-            // ***********************************
-            // ADD YOUR NETWORK CREATION CODE HERE
-            // ***********************************
+            // build features and labels
+            features = NetUtil.Var(new int[] { 13 }, DataType.Float);
+            labels = NetUtil.Var(new int[] { 1 }, DataType.Float);
 
-            return null; // return the finished network here!
+            // build the network
+            var network = features
+                .Dense(64, CNTKLib.ReLU)
+                .Dense(64, CNTKLib.ReLU)
+                .Dense(1)
+                .ToNetwork();
+
+            // set up the loss function and the classification error function
+            var lossFunc = NetUtil.MeanSquaredError(network.Output, labels);
+            var errorFunc = NetUtil.MeanAbsoluteError(network.Output, labels);
+
+            // use the Adam learning algorithm
+            var learner = network.GetAdamLearner(
+                learningRateSchedule: (0.001, 1),
+                momentumSchedule: (0.9, 1),
+                unitGain: true);
+
+            // set up a trainer and an evaluator
+            trainer = network.GetTrainer(learner, lossFunc, errorFunc);
+            evaluator = network.GetEvaluator(errorFunc);
+
+            // return the completed network
+            return network;
         }
 
         /// <summary>
@@ -79,9 +101,19 @@ namespace ml_csharp_lesson4
         [STAThread]
         public static void Main(string[] args)
         {
-            // ****************************
-            // ADD YOUR REMAINING CODE HERE
-            // ****************************
+            // unzip archive
+            if (!System.IO.File.Exists("x_train.bin"))
+            {
+                DataUtil.Unzip(@"..\..\..\..\..\boston_housing.zip", ".");
+            }
+
+            // load training and test data
+            var training_data = DataUtil.LoadBinary<float>("x_train.bin", 404, 13);
+            var test_data = DataUtil.LoadBinary<float>("x_test.bin", 102, 13);
+            var training_labels = DataUtil.LoadBinary<float>("y_train.bin", 404);
+            var test_labels = DataUtil.LoadBinary<float>("y_test.bin", 102);
+
+
 
             Console.ReadLine();
         }

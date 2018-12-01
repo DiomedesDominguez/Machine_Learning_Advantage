@@ -101,9 +101,44 @@ namespace ml_csharp_lesson3
             // shuffle the frame using the indices
             housing = housing.IndexRowsWith(indices).SortRowsByKey();
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // create the rooms_per_person feature
+            housing.AddColumn("rooms_per_person",
+               (housing["total_rooms"] / housing["population"]).Select(v => v.Value <= 4.0 ? v.Value : 4.0));
+
+            // calculate the correlation matrix
+            var correlation = Measures.Correlation(housing.ToArray2D<double>());
+
+            // show the correlation matrix
+            Print(housing, correlation);
+
+            // calculate binned latitudes
+            var binned_latitude =
+                from l in housing["latitude"].Values
+                let bin = (from b in Bins(32, 41)
+                           where l >= b.Min && l < b.Max
+                           select b)
+                select bin.First().Min;
+
+            // add one-hot encoding columns
+            foreach (var i in Enumerable.Range(32, 10))
+            {
+                housing.AddColumn($"latitude {i}-{i + 1}",
+                    from l in binned_latitude
+                    select l == i ? 1 : 0);
+            }
+
+            // drop the latitude column
+            housing.DropColumn("latitude");
+
+            // show the data frame on the console
+            housing.Print();
+
+            // calculate rooms_per_person histogram
+            var histogram = new Histogram();
+            histogram.Compute(housing["rooms_per_person"].Values.ToArray(), 0.1);
+
+            // plot the histogram
+            Plot(histogram, "Histogram", "Rooms per person", "Number of housing blocks");
 
             Console.ReadLine();
         }

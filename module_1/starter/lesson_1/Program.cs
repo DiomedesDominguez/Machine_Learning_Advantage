@@ -57,30 +57,40 @@ namespace ml_csharp_lesson1
             Console.WriteLine("Loading data....");
             var path = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\california_housing.csv"));
             var housing = Frame.ReadCsv(path, separators: ",");
+            housing = housing.Where(kv => ((decimal)kv.Value["median_house_value"]) < 500000);
 
             // set up a few series
-            // ADD YOUR CODE HERE...
+            var total_rooms = housing["total_rooms"];
+            var median_house_value = housing["median_house_value"];
+            var median_income = housing["median_income"];
 
             // convert the house value range to thousands
-            // ADD YOUR CODE HERE...
+            median_house_value /= 1000;
 
             // set up feature and label
-            // ADD YOUR CODE HERE...
+            var feature = median_income.Values.ToArray();
+            var labels = median_house_value.Values.ToArray();
 
             // train the model
-            // ADD YOUR CODE HERE...
+            var learner = new OrdinaryLeastSquares();
+            var model = learner.Learn(feature, labels);
 
             // show training results
-            // ADD YOUR CODE HERE...
+            Console.WriteLine($"Slope:       {model.Slope}");
+            Console.WriteLine($"Intercept:   {model.Intercept}");
 
             // validate the model
-            // ADD YOUR CODE HERE...
+            var predictions = model.Transform(feature);
+            var rmse = Math.Sqrt(new SquareLoss(labels).Loss(predictions));
 
             // show validation results
-            // ADD YOUR CODE HERE...
+            var range = Math.Abs(labels.Max() - labels.Min());
+            Console.WriteLine($"Label range: {range}");
+            Console.WriteLine($"RMSE:        {rmse} {rmse / range * 100:0.00}%");
 
             // plot the results
-            // ADD YOUR CODE HERE...
+            Plot(feature, labels, predictions, "Linear Regression Model",
+    "Median Income", "Median house value");
 
             Console.ReadLine();
         }

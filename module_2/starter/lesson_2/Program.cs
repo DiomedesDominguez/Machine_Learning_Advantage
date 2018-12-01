@@ -69,9 +69,58 @@ namespace ml_csharp_lesson2
             housing.AddColumn("median_high_house_value",
                 housing["median_house_value"].Select(v => v.Value >= 265000 ? 1.0 : 0.0));
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // create one-hot vectors for longitude and latitude
+            var vectors_long =
+                from l in housing["longitude"].Values
+                select Vector.Create<double>(
+                    1,
+                    (from b in Bin(-125, -114)
+                     select l >= b.Min && l < b.Max).ToArray());
+            var vectors_lat =
+                from l in housing["latitude"].Values
+                select Vector.Create<double>(
+                    1,
+                    (from b in Bin(32, 43)
+                     select l >= b.Min && l < b.Max).ToArray());
+
+            // multiply vectors and create columns
+            var vectors_cross =
+                vectors_long.Zip(vectors_lat, (lng, lat) => lng.Outer(lat));
+            for (var i = 0; i < 12; i++)
+                for (var j = 0; j < 12; j++)
+                    housing.AddColumn($"location {i},{j}", from v in vectors_cross select v[i, j]);
+
+            // set up model columns
+            var columns = (from i in Enumerable.Range(0, 12)
+                           from j in Enumerable.Range(0, 12)
+                           select $"location {i},{j}").ToList();
+            columns.Add("housing_median_age");
+            columns.Add("total_rooms");
+            columns.Add("total_bedrooms");
+            columns.Add("population");
+            columns.Add("households");
+            columns.Add("median_income");
+
+            // create training, validation, and test partitions
+
+            var training = housing.Rows[Enumerable.Range(0, 12000)];
+            var validation = housing.Rows[Enumerable.Range(12000, 2500)];
+            var test = housing.Rows[Enumerable.Range(14500, 2500)];
+
+            // train the model
+            var learner = new IterativeReweightedLeastSquares<LogisticRegression>()
+            {
+                MaxIterations = 50,
+                Regularization = 0
+            };
+            var regression = learner.Learn(
+                training.Columns[columns].ToArray2D<double>().ToJagged(),
+                training["median_high_house_value"].Values.ToArray());
+
+            // plot a histogram of the nonzero weights
+            var histogram = new Histogram();
+            histogram.Compute(regression.Weights, 20);
+            Plot(histogram, "Without regularization", "prediction", "count");
 
             Console.ReadLine();
         }

@@ -74,10 +74,45 @@ namespace ml_csharp_lesson4
             var validation = housing.Rows[Enumerable.Range(12000, 2500)];
             var test = housing.Rows[Enumerable.Range(14500, 2500)];
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // set up model columns
+            var columns = (from i in Enumerable.Range(32, 10)
+                           select $"latitude {i}-{i + 1}").ToList();
+            columns.Add("median_income");
+            columns.Add("rooms_per_person");
 
+            // train the model
+            var learner = new OrdinaryLeastSquares();
+            var regression = learner.Learn(
+                training.Columns[columns].ToArray2D<double>().ToJagged(),  // features
+                training["median_house_value"].Values.ToArray());          // labels
+
+            // display training results
+            Console.WriteLine("TRAINING RESULTS");
+            Console.WriteLine($"Weights: {regression.Weights.ToString<double>("0.00")}");
+            Console.WriteLine($"Intercept: {regression.Intercept}");
+            Console.WriteLine();
+
+            // validate the model
+            var predictions = regression.Transform(
+                validation.Columns[columns].ToArray2D<double>().ToJagged());
+
+            // display validation results
+            var labels = validation["median_house_value"].Values.ToArray();
+            var rmse = Math.Sqrt(new SquareLoss(labels).Loss(predictions));
+            Console.WriteLine("VALIDATION RESULTS");
+            Console.WriteLine($"RMSE: {rmse:0.00}");
+            Console.WriteLine();
+
+            // test the model
+            var predictions_test = regression.Transform(
+                test.Columns[columns].ToArray2D<double>().ToJagged());
+
+            // display test results
+            var labels_test = test["median_house_value"].Values.ToArray();
+            rmse = Math.Sqrt(new SquareLoss(labels_test).Loss(predictions_test));
+            Console.WriteLine("TEST RESULTS");
+            Console.WriteLine($"RMSE: {rmse:0.00}");
+            Console.WriteLine();
             Console.ReadLine();
         }
     }
